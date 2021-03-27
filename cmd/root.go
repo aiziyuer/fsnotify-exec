@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/gogf/gf/os/gfile"
 	"github.com/gogf/gf/text/gregex"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
@@ -124,7 +123,12 @@ var rootCmd = &cobra.Command{
 					tmpCmd.Env = os.Environ()
 
 					// 自定义变量
-					tmpCmd.Env = append(tmpCmd.Env, fmt.Sprintf("EVENT=%s", event))
+					tmpCmd.Env = append(tmpCmd.Env, fmt.Sprintf("NOTIFY_EVENT=%s", event.Op))
+					tmpCmd.Env = append(tmpCmd.Env, fmt.Sprintf("NOTIFY_FILE=%s", event.Name))
+
+					zap.S().Debugf("Env: %s", tmpCmd.Env)
+					zap.S().Debugf("commandEntrypoint: %s", commandEntrypoint, )
+					zap.S().Debugf("commandArgs: %s",  commandArgs)
 
 					// 命令处理
 					err := tmpCmd.Run()
