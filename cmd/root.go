@@ -22,9 +22,12 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/gogf/gf/os/gfile"
+	"github.com/gogf/gf/text/gregex"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -36,7 +39,7 @@ var cfgFile string
 
 var ProgramName = "fsnotify-exec"
 
-var watchedObjects []string
+var watchedObjects, ignoredGlobPatterns, ignoredRegexPatterns []string
 
 var rootCmd = &cobra.Command{
 	Use: ProgramName,
@@ -106,6 +109,13 @@ var rootCmd = &cobra.Command{
 
 					zap.S().Info("event:", event)
 
+					// 忽略规则内的文件
+					for _, pattern := range ignoredRegexPatterns {
+						if gregex.IsMatchString(pattern, event.Name) {
+							return
+						}
+					}
+
 					tmpCmd := exec.Command(commandEntrypoint, commandArgs...)
 
 					// 复用系统输入输出
@@ -131,10 +141,27 @@ var rootCmd = &cobra.Command{
 			}
 		}()
 
+		// 新增匹配
 		for _, obj := range watchedObjects {
 			if err := watcher.Add(obj); err != nil {
 				zap.S().Info(err)
 			}
+		}
+
+		// 新增忽略(Glob)
+		for _, pattern := range ignoredGlobPatterns {
+
+			list, err := filepath.Glob(pattern)
+			if err != nil {
+				zap.S().Info(err)
+				continue
+			}
+			for _, obj := range list {
+				if err := watcher.Remove(obj); err != nil {
+					zap.S().Info(err)
+				}
+			}
+
 		}
 
 		<-done
@@ -155,6 +182,10 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.Flags().StringSliceVarP(&watchedObjects, "watch", "w", []string{"./"}, "thd object which need be watched, eg: dir/file.")
+
+	rootCmd.Flags().StringSliceVarP(&ignoredGlobPatterns, "ignore-glob", "", []string{}, "thd object which need be ignored(glob/wild).")
+
+	rootCmd.Flags().StringSliceVarP(&ignoredRegexPatterns, "ignore-regex", "", []string{}, "thd object which need be ignored(regex).")
 
 	rootCmd.Version = version
 
