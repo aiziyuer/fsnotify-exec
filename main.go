@@ -1,4 +1,4 @@
-package ionotify_exec
+package main
 
 import (
 	"fmt"

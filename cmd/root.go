@@ -16,13 +16,19 @@ limitations under the License.
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/mitchellh/go-homedir"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"io"
 	"os"
+	"os/exec"
 	"path"
+	"strings"
 )
 
 var cfgFile string
@@ -32,6 +38,62 @@ var ProgramName = "fsnotify-exec"
 var rootCmd = &cobra.Command{
 	Use: ProgramName,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		cmd.SilenceUsage = true
+		cmd.SilenceErrors = false
+
+		if len(args) > 0 {
+
+			// read commands
+			tmpCmd := exec.Command(args[0], args[1:]...)
+			tmpCmd.Env = os.Environ()
+			tmpCmd.Env = append(tmpCmd.Env, "MY_VAR=some_value")
+			out, err := tmpCmd.CombinedOutput()
+			if err != nil {
+				zap.S().Fatalf("cmd.Run() failed with %s\n", err)
+			}
+			zap.S().Infof("combined out:\n%s\n", string(out))
+
+			return nil
+		}
+
+		// read from pipe
+		var sb strings.Builder
+		reader := bufio.NewReader(cmd.InOrStdin())
+
+		// try read from pipe
+		fileInfo, _ := os.Stdin.Stat()
+		if fileInfo.Mode()&os.ModeCharDevice != 0 {
+
+			// no pipe input, no file input, error tips and usage tips
+			cmd.SilenceUsage = false
+			return errors.New("input command is needed. ")
+		}
+
+		for {
+			r, _, err := reader.ReadRune()
+			if err != nil {
+				if err == io.EOF {
+					break
+				} else {
+					return err
+				}
+			}
+
+			_, _ = sb.WriteRune(r)
+		}
+
+		command := sb.String()
+		logrus.Debugf("input command: %s", command)
+
+		tmpCmd := exec.Command("sh", "-c", command)
+		tmpCmd.Env = os.Environ()
+		tmpCmd.Env = append(tmpCmd.Env, "MY_VAR=some_value")
+		out, err := tmpCmd.CombinedOutput()
+		if err != nil {
+			zap.S().Fatalf("cmd.Run() failed with %s\n", err)
+		}
+		zap.S().Infof("combined out:\n%s\n", string(out))
 
 		return nil
 	},
