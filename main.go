@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/aiziyuer/ionotify-exec/cmd"
-	"github.com/aiziyuer/ionotify-exec/util"
+
+	"github.com/aiziyuer/fsnotify-exec/cmd"
+	"github.com/aiziyuer/fsnotify-exec/util"
 )
 
 func main() {
