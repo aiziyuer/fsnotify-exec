@@ -24,6 +24,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -42,11 +43,14 @@ var rootCmd = &cobra.Command{
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = false
 
-		var tmpCmd *exec.Cmd
+		var commandEntrypoint string = "sh"
+		var commandArgs []string
+
 		if len(args) > 0 {
 
 			// read commands
-			tmpCmd = exec.Command(args[0], args[1:]...)
+			commandEntrypoint = args[0]
+			commandArgs = args[1:]
 
 		} else {
 
@@ -77,24 +81,59 @@ var rootCmd = &cobra.Command{
 			}
 
 			command := sb.String()
-			zap.S().Debugf("input command: %s", command)
 
-			tmpCmd = exec.Command("sh", "-c", command)
+			commandArgs = append(commandArgs, "-c")
+			commandArgs = append(commandArgs, command)
 
 		}
 
-		tmpCmd.Env = os.Environ()
-
-		// 自定义变量
-		tmpCmd.Env = append(tmpCmd.Env, "MY_VAR=some_value")
-
-
-		// 命令处理
-		out, err := tmpCmd.CombinedOutput()
+		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
-			zap.S().Fatalf("cmd.Run() failed with %s\n", err)
+			zap.S().Fatal(err)
 		}
-		zap.S().Info(string(out))
+		defer watcher.Close()
+
+		done := make(chan bool)
+		go func() {
+			for {
+				select {
+				case event, ok := <-watcher.Events:
+					if !ok {
+						return
+					}
+					
+					zap.S().Info("event:", event)
+
+					tmpCmd := exec.Command(commandEntrypoint, commandArgs...)
+
+					// 复用系统输入输出
+					tmpCmd.Stdout = os.Stdout
+					tmpCmd.Stderr = os.Stderr
+					tmpCmd.Env = os.Environ()
+
+					// 自定义变量
+					tmpCmd.Env = append(tmpCmd.Env, fmt.Sprintf("EVENT=%s", event))
+
+					// 命令处理
+					err := tmpCmd.Run()
+					if err != nil {
+						zap.S().Fatalf("cmd.Run() failed with %s\n", err)
+					}
+
+				case err, ok := <-watcher.Errors:
+					if !ok {
+						return
+					}
+					zap.S().Fatal("error:", err)
+				}
+			}
+		}()
+
+		err = watcher.Add("./")
+		if err != nil {
+			zap.S().Info(err)
+		}
+		<-done
 
 		return nil
 	},

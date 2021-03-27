@@ -8,6 +8,6 @@ import (
 )
 
 func main() {
-	util.SetupLogs(fmt.Sprintf("/var/log/%s/info.log", cmd.ProgramName))
+	util.SetupLogs(fmt.Sprintf(".%s/info.log", cmd.ProgramName))
 	cmd.Execute()
 }
