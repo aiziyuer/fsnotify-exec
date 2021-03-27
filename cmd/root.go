@@ -27,6 +27,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gogf/gf/text/gregex"
+	"github.com/gogf/gf/text/gstr"
+	"github.com/gogf/gf/util/gconv"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -50,17 +52,22 @@ var rootCmd = &cobra.Command{
 		var commandEntrypoint string = "sh"
 		var commandArgs []string
 
+		var sb strings.Builder
+		reader := bufio.NewReader(cmd.InOrStdin())
+
 		if len(args) > 0 {
 
 			// read commands
-			commandEntrypoint = args[0]
-			commandArgs = args[1:]
+
+			commandArgs = append(commandArgs, "-c")
+			for _, arg := range args {
+				sb.WriteString(fmt.Sprintf("%s ", arg))
+			}
+			commandArgs = append(commandArgs, gstr.Trim(sb.String()))
 
 		} else {
 
 			// read from pipe
-			var sb strings.Builder
-			reader := bufio.NewReader(cmd.InOrStdin())
 
 			// try read from pipe
 			fileInfo, _ := os.Stdin.Stat()
@@ -106,8 +113,6 @@ var rootCmd = &cobra.Command{
 						return
 					}
 
-					zap.S().Info("event:", event)
-
 					// 忽略规则内的文件
 					for _, pattern := range ignoredRegexPatterns {
 						if gregex.IsMatchString(pattern, event.Name) {
@@ -118,23 +123,25 @@ var rootCmd = &cobra.Command{
 					tmpCmd := exec.Command(commandEntrypoint, commandArgs...)
 
 					// 复用系统输入输出
-					tmpCmd.Stdout = os.Stdout
-					tmpCmd.Stderr = os.Stderr
 					tmpCmd.Env = os.Environ()
 
 					// 自定义变量
 					tmpCmd.Env = append(tmpCmd.Env, fmt.Sprintf("NOTIFY_EVENT=%s", event.Op))
 					tmpCmd.Env = append(tmpCmd.Env, fmt.Sprintf("NOTIFY_FILE=%s", event.Name))
 
+					zap.S().Debug("//////////////////////////////////////")
+					zap.S().Debugf("NOTIFY_FILE: %s", event.Name)
+					zap.S().Debugf("NOTIFY_EVENT: %s", event.Op)
 					zap.S().Debugf("Env: %s", tmpCmd.Env)
-					zap.S().Debugf("commandEntrypoint: %s", commandEntrypoint, )
-					zap.S().Debugf("commandArgs: %s",  commandArgs)
+					zap.S().Debugf("commandEntrypoint: %s", commandEntrypoint)
+					zap.S().Debugf("commandArgs: %s", commandArgs)
 
 					// 命令处理
-					err := tmpCmd.Run()
+					output, err := tmpCmd.CombinedOutput()
 					if err != nil {
 						zap.S().Fatalf("cmd.Run() failed with %s\n", err)
 					}
+					fmt.Println(gconv.String(output))
 
 				case err, ok := <-watcher.Errors:
 					if !ok {

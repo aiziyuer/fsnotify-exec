@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "debug",
             "program": "${workspaceFolder}",
-            "args": [ "echo", "'hello'" ]
+            "args": [ "echo", "$NOTIFY_FILE" ]
         }
     ]
 }
