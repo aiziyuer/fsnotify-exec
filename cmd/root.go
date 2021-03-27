@@ -36,6 +36,8 @@ var cfgFile string
 
 var ProgramName = "fsnotify-exec"
 
+var watchedObjects []string
+
 var rootCmd = &cobra.Command{
 	Use: ProgramName,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -101,7 +103,7 @@ var rootCmd = &cobra.Command{
 					if !ok {
 						return
 					}
-					
+
 					zap.S().Info("event:", event)
 
 					tmpCmd := exec.Command(commandEntrypoint, commandArgs...)
@@ -129,10 +131,12 @@ var rootCmd = &cobra.Command{
 			}
 		}()
 
-		err = watcher.Add("./")
-		if err != nil {
-			zap.S().Info(err)
+		for _, obj := range watchedObjects {
+			if err := watcher.Add(obj); err != nil {
+				zap.S().Info(err)
+			}
 		}
+
 		<-done
 
 		return nil
@@ -150,9 +154,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
-		fmt.Sprintf("config file (default is $HOME/.%s/config.toml)", ProgramName),
-	)
+	rootCmd.Flags().StringSliceVarP(&watchedObjects, "watch", "w", []string{"./"}, "thd object which need be watched, eg: dir/file.")
 
 	rootCmd.Version = version
 
