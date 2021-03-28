@@ -8,4 +8,11 @@ FROM centos:7
 
 COPY --from=build /fsnotify-exec /usr/bin/fsnotify-exec
 WORKDIR /tmp
-CMD ["fsnotify-exec", "-w", ".", "echo $NOTIFY_FILE"]
+
+ENV WATCH "."
+RUN mkdir -p /etc/fsnotify.d
+COPY demo.sh /etc/fsnotify.d/demo.sh
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["server"]
